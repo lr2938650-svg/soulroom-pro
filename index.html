@@ -1,300 +1,357 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>SoulRoom 💜</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <title>SoulRoom 💜</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0"
+    />
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <!-- Firebase -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
-<!-- Emoji picker -->
-<script src="https://cdn.jsdelivr.net/npm/emoji-button@4.6.2/dist/index.min.js"></script>
+    <!-- Emoji picker -->
+    <script src="https://cdn.jsdelivr.net/npm/emoji-button@4.6.2/dist/index.min.js"></script>
 
-<style>
-:root{
-  --bg:#f7e9f5;
-  --card:#fff;
-  --me:#d9b3ff;
-  --other:#f1d1e8;
-  --text:#333;
-}
-.dark{
-  --bg:#1e1b2e;
-  --card:#2a2545;
-  --me:#7c6ae6;
-  --other:#403a66;
-  --text:#fff;
-}
-body{
-  margin:0;
-  font-family:system-ui;
-  background:var(--bg);
-  color:var(--text);
-  transition:.3s;
-}
-#login,#chat{
-  max-width:500px;
-  margin:auto;
-  padding:10px;
-}
-.card{
-  background:var(--card);
-  border-radius:16px;
-  padding:35px;
-  box-shadow:0 5px 20px rgba(0,0,0,.15);
-}
-input,textarea,button{
-  width:100%;
-  padding:12px;
-  border-radius:12px;
-  border:none;
-  margin-top:8px;
-  font-size:16px;
-}
-button{
-  background:#b388ff;
-  color:white;
-  cursor:pointer;
-}
-.roomRow{
-  display:flex;
-  gap:8px;
-}
-.roomRow button{
-  width:50px;
-}
-#messages{
-  height:55vh;
-  overflow-y:auto;
-  margin-bottom:10px;
-}
-.msg{
-  max-width:75%;
-  padding:10px;
-  margin:6px 0;
-  border-radius:14px;
-  word-wrap:break-word;
-  position:relative;
-}
-.me{background:var(--me);margin-left:auto;}
-.other{background:var(--other);}
-.msg img{
-  width:100%;
-  border-radius:12px;
-  margin-top:6px;
-}
-.tick{
-  font-size:12px;
-  color:#555;
-  margin-left:5px;
-}
-#typing{font-size:12px;opacity:.7;margin-bottom:4px}
-.inputBar{
-  display:flex;
-  gap:6px;
-  align-items:center;
-}
-textarea{flex:1;height:45px;resize:none}
-.smallBtn{
-  width:45px;
-  height:45px;
-  border-radius:50%;
-}
-.toggle{
-  position:right;
-  top:10px;
-  right:10px;
-}
-</style>
-</head>
-
-<body>
-
-<button class="toggle" onclick="toggleTheme()">🌙</button>
-
-<div id="login">
-  <div class="card">
-    <h2>💜 SoulRoom</h2>
-    <input id="name" placeholder="Your Name">
-    <div class="roomRow">
-      <input id="room" placeholder="Secret Room Code" type="password">
-      <button onclick="toggleRoom()">👁️</button>
-    </div>
-    <button onclick="join()">Enter</button>
-  </div>
-</div>
-
-<div id="chat" style="display:none">
-  <div class="card">
-    <div id="messages"></div>
-    <div id="typing"></div>
-
-    <div class="inputBar">
-      <button class="smallBtn" id="emojiBtn">😀</button>
-      <button class="smallBtn" onclick="imgInput.click()">📷</button>
-      <textarea id="msg" placeholder="Type a message…"></textarea>
-      <button class="smallBtn" onclick="send()">➤</button>
-      <button class="smallBtn" id="voiceBtn">🎤</button>
-      <input type="file" id="imgInput" accept="image/*" style="display:none">
-    </div>
-  </div>
-</div>
-
-<script>
-/* Firebase config */
-firebase.initializeApp({
-  apiKey: "AIzaSyAdpLNU2c-C5KxJv2weJECSpoghz_NGNtM",
-  authDomain: "soulroom-4e31d.firebaseapp.com",
-  databaseURL: "https://soulroom-4e31d-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "soulroom-4e31d",
-  storageBucket: "soulroom-4e31d.firebasestorage.app",
-  messagingSenderId: "139421380646",
-  appId: "1:139421380646:web:8dc4a4e166291102d2f6e7"
-});
-const db=firebase.database();
-
-/* Elements */
-const loginDiv=document.getElementById("login");
-const chatDiv=document.getElementById("chat");
-const nameInput=document.getElementById("name");
-const roomInput=document.getElementById("room");
-const msgInput=document.getElementById("msg");
-const messagesDiv=document.getElementById("messages");
-const typingDiv=document.getElementById("typing");
-const imgInput=document.getElementById("imgInput");
-
-let user,room,ref;
-let mediaRecorder, audioChunks=[];
-
-/* Room input show/hide */
-function toggleRoom(){roomInput.type = roomInput.type==="password"?"text":"password";}
-function toggleTheme(){document.body.classList.toggle("dark");}
-
-/* Join Room */
-function join(){
-  if(!nameInput.value||!roomInput.value){ alert("Fill all fields"); return;}
-  user=nameInput.value;
-  room=roomInput.value;
-  ref=db.ref("rooms/"+room);
-
-  ref.once("value").then(snap=>{
-    if(!snap.exists()){ ref.set({created:Date.now()}); }
-    loginDiv.style.display="none";
-    chatDiv.style.display="block";
-    listen();
-  });
-}
-
-/* Emoji picker */
-const picker=new EmojiButton({position:'top-end'});
-document.getElementById('emojiBtn').addEventListener('click',()=>{picker.togglePicker(msgInput)});
-picker.on('emoji', emoji => { msgInput.value += emoji; });
-
-/* Listen messages + typing */
-function listen(){
-  // messages
-  ref.child("messages").on("child_added",s=>{
-    const m=s.val();
-    const d=document.createElement("div");
-    d.className="msg "+(m.user===user?"me":"other");
-
-    if(m.image){
-      const img=document.createElement("img");
-      img.src=m.image;
-      d.appendChild(img);
-      if(m.text) d.innerHTML+=m.text;
-    } else if(m.audio){
-      const audio=document.createElement("audio");
-      audio.controls=true;
-      audio.src=m.audio;
-      d.appendChild(audio);
-    } else d.innerText=m.text;
-
-    // Seen tick
-    if(m.user===user){
-      const tick=document.createElement("span");
-      tick.className="tick";
-      tick.innerText=m.seen?"✔✔":"✔";
-      d.appendChild(tick);
-    } else {
-      ref.child("messages/"+s.key+"/seen").set(true);
-    }
-
-    messagesDiv.appendChild(d);
-    messagesDiv.scrollTop=99999;
-  });
-
-  // typing
-  ref.child("typing").on("value",s=>{
-    typingDiv.innerText=s.val()||"";
-  });
-
-  // Auto delete room if empty
-  const roomRef=db.ref("rooms/"+room);
-  roomRef.onDisconnect().remove();
-}
-
-/* Send message + image */
-function send(){
-  if(!msgInput.value && !imgInput.files[0]) return;
-  const data={user,text:msgInput.value||"",time:Date.now(),seen:false};
-
-  if(imgInput.files[0]){
-    const file=imgInput.files[0];
-    const reader=new FileReader();
-    reader.onload=e=>{
-      const img=new Image();
-      img.src=e.target.result;
-      img.onload=()=>{
-        const canvas=document.createElement("canvas");
-        const maxWidth=500;
-        const scale=maxWidth/img.width;
-        canvas.width=maxWidth;
-        canvas.height=img.height*scale;
-        const ctx=canvas.getContext("2d");
-        ctx.drawImage(img,0,0,canvas.width,canvas.height);
-        data.image=canvas.toDataURL("image/jpeg",0.7);
-        ref.child("messages").push(data);
+    <style>
+      :root {
+        --bg: #f7e9f5;
+        --card: #fff;
+        --me: #d9b3ff;
+        --other: #f1d1e8;
+        --text: #333;
       }
-    }
-    reader.readAsDataURL(file);
-  } else {
-    ref.child("messages").push(data);
-  }
+      .dark {
+        --bg: #1e1b2e;
+        --card: #2a2545;
+        --me: #7c6ae6;
+        --other: #403a66;
+        --text: #fff;
+      }
+      body {
+        margin: 0;
+        font-family: system-ui;
+        background: var(--bg);
+        color: var(--text);
+        transition: 0.3s;
+      }
+      #login,
+      #chat {
+        max-width: 500px;
+        margin: auto;
+        padding: 10px;
+      }
+      .card {
+        background: var(--card);
+        border-radius: 16px;
+        padding: 35px;
+        box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+      }
+      input,
+      textarea,
+      button {
+        width: 100%;
+        padding: 12px;
+        border-radius: 12px;
+        border: none;
+        margin-top: 8px;
+        font-size: 16px;
+      }
+      button {
+        background: #b388ff;
+        color: white;
+        cursor: pointer;
+      }
+      .roomRow {
+        display: flex;
+        gap: 8px;
+      }
+      .roomRow button {
+        width: 50px;
+      }
+      #messages {
+        height: 55vh;
+        overflow-y: auto;
+        margin-bottom: 10px;
+      }
+      .msg {
+        max-width: 75%;
+        padding: 10px;
+        margin: 6px 0;
+        border-radius: 14px;
+        word-wrap: break-word;
+        position: relative;
+      }
+      .me {
+        background: var(--me);
+        margin-left: auto;
+      }
+      .other {
+        background: var(--other);
+      }
+      .msg img {
+        width: 100%;
+        border-radius: 12px;
+        margin-top: 6px;
+      }
+      .tick {
+        font-size: 12px;
+        color: #555;
+        margin-left: 5px;
+      }
+      #typing {
+        font-size: 12px;
+        opacity: 0.7;
+        margin-bottom: 4px;
+      }
+      .inputBar {
+        display: flex;
+        gap: 6px;
+        align-items: center;
+      }
+      textarea {
+        flex: 1;
+        height: 45px;
+        resize: none;
+      }
+      .smallBtn {
+        width: 45px;
+        height: 45px;
+        border-radius: 50%;
+      }
+      .toggle {
+        position: right;
+        top: 10px;
+        right: 10px;
+      }
+    </style>
+  </head>
 
-  msgInput.value="";
-  imgInput.value="";
-  ref.child("typing").set("");
-}
+  <body>
+    <button class="toggle" onclick="toggleTheme()">🌙</button>
 
-/* Typing indicator */
-msgInput.oninput=()=>{
-  ref.child("typing").set(user+" typing...");
-  setTimeout(()=>ref.child("typing").set(""),1000);
-};
+    <div id="login">
+      <div class="card">
+        <h2>💜 SoulRoom</h2>
+        <input id="name" placeholder="Your Name" />
+        <div class="roomRow">
+          <input id="room" placeholder="Secret Room Code" type="password" />
+          <button onclick="toggleRoom()">👁️</button>
+        </div>
+        <button onclick="join()">Enter</button>
+      </div>
+    </div>
 
-/* Voice note */
-document.getElementById("voiceBtn").addEventListener("click",()=>{
-  if(!navigator.mediaDevices) return alert("Microphone not supported");
+    <div id="chat" style="display: none">
+      <div class="card">
+        <div id="messages"></div>
+        <div id="typing"></div>
 
-  if(!mediaRecorder || mediaRecorder.state==="inactive"){
-    navigator.mediaDevices.getUserMedia({audio:true}).then(stream=>{
-      mediaRecorder=new MediaRecorder(stream);
-      audioChunks=[];
-      mediaRecorder.ondataavailable=e=>audioChunks.push(e.data);
-      mediaRecorder.onstop=()=>{
-        const blob=new Blob(audioChunks,{type:'audio/webm'});
-        const reader=new FileReader();
-        reader.onload=()=>{ ref.child("messages").push({user,audio:reader.result,time:Date.now(),seen:false}); }
-        reader.readAsDataURL(blob);
+        <div class="inputBar">
+          <button class="smallBtn" id="emojiBtn">😀</button>
+          <button class="smallBtn" onclick="imgInput.click()">📷</button>
+          <textarea id="msg" placeholder="Type a message…"></textarea>
+          <button class="smallBtn" onclick="send()">➤</button>
+          <button class="smallBtn" id="voiceBtn">🎤</button>
+          <input
+            type="file"
+            id="imgInput"
+            accept="image/*"
+            style="display: none"
+          />
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /* Firebase config */
+      firebase.initializeApp({
+        apiKey: "AIzaSyAdpLNU2c-C5KxJv2weJECSpoghz_NGNtM",
+        authDomain: "soulroom-4e31d.firebaseapp.com",
+        databaseURL:
+          "https://soulroom-4e31d-default-rtdb.asia-southeast1.firebasedatabase.app",
+        projectId: "soulroom-4e31d",
+        storageBucket: "soulroom-4e31d.firebasestorage.app",
+        messagingSenderId: "139421380646",
+        appId: "1:139421380646:web:8dc4a4e166291102d2f6e7",
+      });
+      const db = firebase.database();
+
+      /* Elements */
+      const loginDiv = document.getElementById("login");
+      const chatDiv = document.getElementById("chat");
+      const nameInput = document.getElementById("name");
+      const roomInput = document.getElementById("room");
+      const msgInput = document.getElementById("msg");
+      const messagesDiv = document.getElementById("messages");
+      const typingDiv = document.getElementById("typing");
+      const imgInput = document.getElementById("imgInput");
+
+      let user, room, ref;
+      let mediaRecorder,
+        audioChunks = [];
+
+      /* Room input show/hide */
+      function toggleRoom() {
+        roomInput.type = roomInput.type === "password" ? "text" : "password";
+      }
+      function toggleTheme() {
+        document.body.classList.toggle("dark");
+      }
+
+      /* Join Room */
+      function join() {
+        if (!nameInput.value || !roomInput.value) {
+          alert("Fill all fields");
+          return;
+        }
+        user = nameInput.value;
+        room = roomInput.value;
+        ref = db.ref("rooms/" + room);
+
+        ref.once("value").then((snap) => {
+          if (!snap.exists()) {
+            ref.set({ created: Date.now() });
+          }
+          loginDiv.style.display = "none";
+          chatDiv.style.display = "block";
+          listen();
+        });
+      }
+
+      /* Emoji picker */
+      const picker = new EmojiButton({ position: "top-end" });
+      document.getElementById("emojiBtn").addEventListener("click", () => {
+        picker.togglePicker(msgInput);
+      });
+      picker.on("emoji", (emoji) => {
+        msgInput.value += emoji;
+      });
+
+      /* Listen messages + typing */
+      function listen() {
+        // messages
+        ref.child("messages").on("child_added", (s) => {
+          const m = s.val();
+          const d = document.createElement("div");
+          d.className = "msg " + (m.user === user ? "me" : "other");
+
+          if (m.image) {
+            const img = document.createElement("img");
+            img.src = m.image;
+            d.appendChild(img);
+            if (m.text) d.innerHTML += m.text;
+          } else if (m.audio) {
+            const audio = document.createElement("audio");
+            audio.controls = true;
+            audio.src = m.audio;
+            d.appendChild(audio);
+          } else d.innerText = m.text;
+
+          // Seen tick
+          if (m.user === user) {
+            const tick = document.createElement("span");
+            tick.className = "tick";
+            tick.innerText = m.seen ? "✔✔" : "✔";
+            d.appendChild(tick);
+          } else {
+            ref.child("messages/" + s.key + "/seen").set(true);
+          }
+
+          messagesDiv.appendChild(d);
+          messagesDiv.scrollTop = 99999;
+        });
+
+        // typing
+        ref.child("typing").on("value", (s) => {
+          typingDiv.innerText = s.val() || "";
+        });
+
+        // Auto delete room if empty
+        const roomRef = db.ref("rooms/" + room);
+        roomRef.onDisconnect().remove();
+      }
+
+      /* Send message + image */
+      function send() {
+        if (!msgInput.value && !imgInput.files[0]) return;
+        const data = {
+          user,
+          text: msgInput.value || "",
+          time: Date.now(),
+          seen: false,
+        };
+
+        if (imgInput.files[0]) {
+          const file = imgInput.files[0];
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const img = new Image();
+            img.src = e.target.result;
+            img.onload = () => {
+              const canvas = document.createElement("canvas");
+              const maxWidth = 500;
+              const scale = maxWidth / img.width;
+              canvas.width = maxWidth;
+              canvas.height = img.height * scale;
+              const ctx = canvas.getContext("2d");
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              data.image = canvas.toDataURL("image/jpeg", 0.7);
+              ref.child("messages").push(data);
+            };
+          };
+          reader.readAsDataURL(file);
+        } else {
+          ref.child("messages").push(data);
+        }
+
+        msgInput.value = "";
+        imgInput.value = "";
+        ref.child("typing").set("");
+      }
+
+      /* Typing indicator */
+      msgInput.oninput = () => {
+        ref.child("typing").set(user + " typing...");
+        setTimeout(() => ref.child("typing").set(""), 1000);
       };
-      mediaRecorder.start();
-      alert("Recording started, click 🎤 again to stop");
-    });
-  } else if(mediaRecorder.state==="recording"){ mediaRecorder.stop(); alert("Recording stopped"); }
-});
-</script>
-</body>
+
+      /* Voice note */
+      document.getElementById("voiceBtn").addEventListener("click", () => {
+        if (!navigator.mediaDevices) return alert("Microphone not supported");
+
+        if (!mediaRecorder || mediaRecorder.state === "inactive") {
+          navigator.mediaDevices
+            .getUserMedia({ audio: true })
+            .then((stream) => {
+              mediaRecorder = new MediaRecorder(stream);
+              audioChunks = [];
+              mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+              mediaRecorder.onstop = () => {
+                const blob = new Blob(audioChunks, { type: "audio/webm" });
+                const reader = new FileReader();
+                reader.onload = () => {
+                  ref
+                    .child("messages")
+                    .push({
+                      user,
+                      audio: reader.result,
+                      time: Date.now(),
+                      seen: false,
+                    });
+                };
+                reader.readAsDataURL(blob);
+              };
+              mediaRecorder.start();
+              alert("Recording started, click 🎤 again to stop");
+            });
+        } else if (mediaRecorder.state === "recording") {
+          mediaRecorder.stop();
+          alert("Recording stopped");
+        }
+      });
+    </script>
+  </body>
 </html>
